@@ -54,13 +54,13 @@ class AntiBounceController extends AntiBounceAppController
         // Get from SNS notifiate.
         if (! $message) {
             $this->log('Error: Failed checkNotificateFromSns().');
-            return false;
+            exit;
         }
 
         // Check from SNS notificate.
         if (! $this->checkNotificateFromSns($message)) {
             $this->log('Error: Failed checkNotificateFromSns().');
-            return false;
+            exit;
         }
 
         // Check SNS TopicArn. (TopicArn is unique in AWS)
@@ -74,11 +74,11 @@ class AntiBounceController extends AntiBounceAppController
             $this->isSubscription = false;
         } else {
             $this->log('Error: Failed approved message type.');
-            return false;
+            exit;
         }
         if (! $this->checkSnsTopic($topic, $email)) {
             $this->log('Error: Failed checkSnsTopic().');
-            return false;
+            exit;
         }
 
         if ($this->isSubscription) {
@@ -86,11 +86,7 @@ class AntiBounceController extends AntiBounceAppController
             $this->SubscriptionEndPoint($message);
         } else {
             // Update records.
-            if (! $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress'])) {
-                $this->log('Error: Failed insertLog().');
-                $this->log(ClassRegistry::init($model)->validationErrors);
-                return false;
-            }
+            $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress']);
         }
     }
 
@@ -125,7 +121,7 @@ class AntiBounceController extends AntiBounceAppController
     }
 
     /**
-     * Update records.
+     * Insert bounce log.
      *
      * @param string $targetEmail
      * @return array
@@ -149,7 +145,10 @@ class AntiBounceController extends AntiBounceAppController
                 "{$log['key']}" => $primaryId
             )
         );
-        $logModel->save();
+        if (! $logModel->save()) {
+            $this->log('Error: Failed insertLog().');
+            $this->log($logModel->validationErrors);
+        }
     }
 
     /**
