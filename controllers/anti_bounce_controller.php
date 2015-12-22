@@ -86,8 +86,8 @@ class AntiBounceController extends AntiBounceAppController
             $this->SubscriptionEndPoint($message);
         } else {
             // Update records.
-            if (! $this->updateRecords($detail['bounce']['bouncedRecipients'][0]['emailAddress'])) {
-                $this->log('Error: Failed updateRecords().');
+            if (! $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress'])) {
+                $this->log('Error: Failed insertLog().');
                 $this->log(ClassRegistry::init($model)->validationErrors);
                 return false;
             }
@@ -130,7 +130,7 @@ class AntiBounceController extends AntiBounceAppController
      * @param string $targetEmail
      * @return array
      */
-    private function updateRecords($targetEmail)
+    private function insertLog($targetEmail)
     {
         $saveData = array();
         extract(Configure::read('AntiBounce.data'));
@@ -142,11 +142,14 @@ class AntiBounceController extends AntiBounceAppController
             $targetEmail
         );
 
-        $saveData[$model] = $fields;
-        $saveData[$model][$primaryKey] = $primaryId;
-        $keys = array_keys($fields);
-
-        return ClassRegistry::init($model)->save($saveData, true, $keys);
+        $logModel = ClassRegistry::init($log['model']);
+        $logModel->create();
+        $logModel->set(
+            array(
+                "{$log['key']}" => $primaryId
+            )
+        );
+        $logModel->save();
     }
 
     /**
