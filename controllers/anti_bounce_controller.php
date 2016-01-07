@@ -85,8 +85,8 @@ class AntiBounceController extends AntiBounceAppController
             // enable end point
             $this->SubscriptionEndPoint($message);
         } else {
-            // Update records.
-            $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress']);
+            // Insert bounce log
+            $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress'], $message['Message']);
         }
     }
 
@@ -126,7 +126,7 @@ class AntiBounceController extends AntiBounceAppController
      * @param string $targetEmail
      * @return array
      */
-    private function insertLog($targetEmail)
+    private function insertLog($targetEmail, $message)
     {
         $saveData = array();
         extract(Configure::read('AntiBounce.data'));
@@ -142,7 +142,8 @@ class AntiBounceController extends AntiBounceAppController
         $logModel->create();
         $logModel->set(
             array(
-                "{$log['key']}" => $primaryId
+                "{$log['key']}" => $primaryId,
+                'message' => $message
             )
         );
         if (! $logModel->save()) {
