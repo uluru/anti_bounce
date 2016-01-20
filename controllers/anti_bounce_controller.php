@@ -54,13 +54,13 @@ class AntiBounceController extends AntiBounceAppController
         // Get from SNS notifiate.
         if (! $message) {
             $this->log('Error: Failed checkNotificateFromSns().');
-            return false;
+            exit;
         }
 
         // Check from SNS notificate.
         if (! $this->checkNotificateFromSns($message)) {
             $this->log('Error: Failed checkNotificateFromSns().');
-            return false;
+            exit;
         }
 
         // Check SNS TopicArn. (TopicArn is unique in AWS)
@@ -74,23 +74,19 @@ class AntiBounceController extends AntiBounceAppController
             $this->isSubscription = false;
         } else {
             $this->log('Error: Failed approved message type.');
-            return false;
+            exit;
         }
         if (! $this->checkSnsTopic($topic, $email)) {
             $this->log('Error: Failed checkSnsTopic().');
-            return false;
+            exit;
         }
 
         if ($this->isSubscription) {
             // enable end point
             $this->SubscriptionEndPoint($message);
         } else {
-            // Update records.
-            if (! $this->updateRecords($detail['bounce']['bouncedRecipients'][0]['emailAddress'])) {
-                $this->log('Error: Failed updateRecords().');
-                $this->log(ClassRegistry::init($model)->validationErrors);
-                return false;
-            }
+            // Insert bounce log
+            $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress'], $message['Message']);
         }
     }
 
@@ -125,12 +121,12 @@ class AntiBounceController extends AntiBounceAppController
     }
 
     /**
-     * Update records.
+     * Insert bounce log.
      *
      * @param string $targetEmail
      * @return array
      */
-    private function updateRecords($targetEmail)
+    private function insertLog($targetEmail, $message)
     {
         $saveData = array();
         extract(Configure::read('AntiBounce.data'));
@@ -142,11 +138,18 @@ class AntiBounceController extends AntiBounceAppController
             $targetEmail
         );
 
-        $saveData[$model] = $fields;
-        $saveData[$model][$primaryKey] = $primaryId;
-        $keys = array_keys($fields);
-
-        return ClassRegistry::init($model)->save($saveData, true, $keys);
+        $logModel = ClassRegistry::init($log['model']);
+        $logModel->create();
+        $logModel->set(
+            array(
+                "{$log['key']}" => $primaryId,
+                'message' => $message
+            )
+        );
+        if (! $logModel->save()) {
+            $this->log('Error: Failed insertLog().');
+            $this->log($logModel->validationErrors);
+        }
     }
 
     /**
