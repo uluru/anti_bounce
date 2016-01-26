@@ -24,13 +24,15 @@ require VENDORS . 'autoload.php';
 use Aws\Sns\Message as Message;
 use Aws\Sns\MessageValidator as MessageValidator;
 use Aws\Sns\Exception\InvalidSnsMessageException as InvalidSnsMessageException;
-
 class AntiBounceController extends AntiBounceAppController
 {
     public $name = 'AntiBounce';
+    public $uses = ['AntiBounce.BounceLog'];
+    private $config;
 
     const TYPE_SUBSCRIPTION = 'SubscriptionConfirmation';
     const TYPE_NOTIFICATION = 'Notification';
+    const NUM_BOUNCE_LIMIT = 3;
 
     public function beforeFilter()
     {
@@ -50,6 +52,8 @@ class AntiBounceController extends AntiBounceAppController
     public function receive()
     {
         $message = Message::fromRawPostData();
+
+        $this->config = Configure::read('AntiBounce');
 
         // Get from SNS notifiate.
         if (! $message) {
@@ -86,7 +90,7 @@ class AntiBounceController extends AntiBounceAppController
             $this->SubscriptionEndPoint($message);
         } else {
             // Insert bounce log
-            $this->insertLog($detail['bounce']['bouncedRecipients'][0]['emailAddress'], $message['Message']);
+            $this->execute($detail['bounce']['bouncedRecipients'][0]['emailAddress'], $message['Message']);
         }
     }
 
@@ -111,69 +115,86 @@ class AntiBounceController extends AntiBounceAppController
      */
     private function checkSnsTopic($topic, $email)
     {
-        $settings = Configure::read('AntiBounce');
-
         if ($this->isSubscription) {
-            return $topic == $settings['topic'];
+            return $topic == $this->config['topic'];
         } else {
-            return $topic == $settings['topic'] && $email == $settings['mail'];
+            return $topic == $this->config['topic'] && $email == $this->config['mail'];
         }
     }
 
     /**
-     * Insert bounce log.
+     * Execute update
      *
      * @param string $targetEmail
-     * @return array
+     * @param string $message
+     * @return void
      */
-    private function insertLog($targetEmail, $message)
+    private function execute($targetEmail, $message)
     {
-        $saveData = array();
-        extract(Configure::read('AntiBounce.data'));
+        $settings = $this->config['settings'];
+        $this->{$settings['email']['model']} = ClassRegistry::init($settings['email']['model']);
 
-        $primaryId = $this->getPrimaryValueByEmail(
-            $model,
-            $primaryKey,
-            $mailField,
-            $targetEmail
-        );
+        $keyValue = $this->getPrimaryValueByEmail($targetEmail);
 
-        $logModel = ClassRegistry::init($log['model']);
-        $logModel->create();
-        $logModel->set(
-            array(
-                "{$log['key']}" => $primaryId,
-                'message' => $message
-            )
-        );
-        if (! $logModel->save()) {
-            $this->log('Error: Failed insertLog().');
-            $this->log($logModel->validationErrors);
+        try {
+            $this->BounceLog->begin();
+
+            $count = $this->BounceLog->saveLog(
+                strtolower($settings['email']['model']) . '_id',
+                $keyValue,
+                $message
+            );
+
+            if ($count == false) {
+                throw new Exception('Error: Failed insertLog(). %s = %d');
+            }
+
+            // Update mail sending setting
+            if ($settings['stopSending'] && $count > self::NUM_BOUNCE_LIMIT) {
+                foreach ($settings['updateFields'] as $updateField) {
+                    $update = $this->{$updateField['model']}->updateAll(
+                        $updateField['fields'],
+                        ["{$updateField['key']}" => $keyValue]
+                    );
+                    if (! $update) {
+                        throw new Exception('Error: Failed stop mail(). %s = %d');
+                    }
+                }
+            }
+
+            $this->BounceLog->commit();
+        } catch (Exception $e) {
+            $this->BounceLog->rollback();
+            $this->log(
+                sprintf(
+                    $e->getMessage(),
+                    strtolower($settings['email']['model']) . '_id',
+                    $keyValue
+                )
+            );
         }
     }
 
     /**
      * Get primary key by email address for update key.
      *
-     * @param string $model
-     * @param intger $primaryKey
-     * @param string $mailField
      * @param string $email
      * @return integer
      */
-    private function getPrimaryValueByEmail($model, $primaryKey, $mailField, $email)
+    private function getPrimaryValueByEmail($email)
     {
-        $result = ClassRegistry::init($model)->find(
+        $settings = $this->config['settings']['email'];
+        $result = $this->{$settings['model']}->find(
             'first',
-            array(
+            [
                 'recursive' => -1,
-                'fields' => $primaryKey,
-                'conditions' => array(
-                    $mailField => $email
-                )
-            )
+                'fields' => $settings['key'],
+                'conditions' => [
+                    "{$settings['mailField']}" => $email
+                ]
+            ]
         );
-        return $result[$model][$primaryKey];
+        return $result[$settings['model']][$settings['key']];
     }
 
     /**
