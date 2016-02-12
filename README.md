@@ -10,7 +10,12 @@ IP一覧: https://forums.aws.amazon.com/ann.jspa?annID=2347
 
 ## 1. プログラム側の準備
 
-### 1-1. composer.json で本プラグインと aws-php-sns-message-validator をインストール
+### 1-1. bounce_logs テーブルを用意する
+
+バウンス履歴を保存するテーブルを作成してください。
+（Model の作成は必要ありません）
+
+### 1-2. composer.json で本プラグインと aws-php-sns-message-validator をインストール
 
     "repositories": [{
       "type": "package",
@@ -43,7 +48,7 @@ IP一覧: https://forums.aws.amazon.com/ann.jspa?annID=2347
     }
 
 
-### 1-2. 設定ファイルの更新
+### 1-3. 設定ファイルの更新
 
 **routes.php**
 
@@ -63,14 +68,28 @@ IP一覧: https://forums.aws.amazon.com/ann.jspa?annID=2347
         array(
             'topic' => '*****',
             'mail' => '*****',
-            'data' => array(
-                'model' => 'User',
-                'primaryKey' => 'id',
-                'mailField' => 'email',
-                'fields' => array(
-                    'inform' => false,
-                    'action_mail' => false
-                )
+            'settings' => array(
+                'stopSending' => false, // true = stop mail sending, false = just write log
+                'email' => array(
+                    'model' => 'User',
+                    'key' => 'id',
+                    'mailField' => 'email',
+                ), // メールアドレスのレコードを指定する
+                'updateFields' => array(
+                    array(
+                        'model' => 'User',
+                        'key' => 'id',
+                        'fields' => array(
+                            'inform' => 0,
+                            'action_mail' => 0,
+                            'activity_report_mail' => 0,
+                            'receive_magazine' => 0,
+                            'favorite_client_inform' => 0,
+                            'bookmark_end_mail' => 0,
+                            'bookmark_few_mail' => 0
+                        )
+                    )
+                ) // stopSending = true の場合に更新するレコードの設定
             )
         )
     );
@@ -123,7 +142,5 @@ Endpoint : https://\*\*\*\*\*.\*\*\*\*/anti_bounce/receive
 * https://docs.aws.amazon.com/ja_jp/ses/latest/DeveloperGuide/mailbox-simulator.html
 
 そうすると、4で設定したEndpoint宛にバウンスしたメール情報が通知されるようになります。
-
-しかし、送信先メールアドレスが「bounce@simulator.amazonses.com」となっているのでDBは更新されません。
 
 以降はアプリケーション側から送信されるメールアドレス（バウンスしたメールアドレス）に紐付くレコードがあった場合 bootstrap.php で設定したモデルが更新されます。
