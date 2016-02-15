@@ -25,19 +25,18 @@ class BounceLog extends AppModel
 {
     public $name = 'BounceLog';
 
-    public $validate = [
-        'user_id' => [
-            'numeric' => [
-                'rule' => 'numeric',
-                'message' => 'ユーザIDを指定してください。',
-                'required' => true,
-                'allowEmpty' => false
-            ],
-        ]
-    ];
-
     public function saveLog($key, $value, $message)
     {
+        $this->validate = [
+            "{$key}" => [
+                'numeric' => [
+                    'rule' => 'numeric',
+                    'message' => 'キーを指定してください。',
+                    'required' => true,
+                    'allowEmpty' => false
+                ],
+            ]
+        ];
         $this->create();
         $this->set(
             [

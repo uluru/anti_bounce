@@ -154,7 +154,7 @@ class AntiBounceController extends AntiBounceAppController
                 foreach ($settings['updateFields'] as $updateField) {
                     $update = $this->{$updateField['model']}->updateAll(
                         $updateField['fields'],
-                        ["{$updateField['key']}" => $keyValue]
+                        ["{$updateField['model']}.{$updateField['key']}" => $keyValue]
                     );
                     if (! $update) {
                         throw new Exception('Error: Failed stop mail(). %s = %d');
