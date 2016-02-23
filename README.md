@@ -12,8 +12,16 @@ IP一覧: https://forums.aws.amazon.com/ann.jspa?annID=2347
 
 ### 1-1. bounce_logs テーブルを用意する
 
-バウンス履歴を保存するテーブルを作成してください。
+バウンス履歴を保存するテーブル（bounce_logs）を作成してください。
 （Model の作成は必要ありません）
+
+| Field    | Type     | Null | Key | Default | Extra          |Comment|
+|---|---|---|---|---|---|---|
+| id       | int(11)  | NO   | PRI | NULL    | auto_increment ||
+| ***_id  | int(11)  | NO   | MUL | NULL    |                |settings.email に応じて設定|
+| message  | text     | NO   |     | NULL    |                ||
+| created  | datetime | NO   |     | NULL    |                ||
+| modified | datetime | NO   |     | NULL    |                ||
 
 ### 1-2. composer.json で本プラグインと aws-php-sns-message-validator をインストール
 
@@ -73,20 +81,15 @@ IP一覧: https://forums.aws.amazon.com/ann.jspa?annID=2347
                 'email' => array(
                     'model' => 'User',
                     'key' => 'id',
-                    'mailField' => 'email',
+                    'mailField' => 'mail_address',
                 ), // メールアドレスのレコードを指定する
                 'updateFields' => array(
                     array(
                         'model' => 'User',
                         'key' => 'id',
                         'fields' => array(
-                            'inform' => 0,
-                            'action_mail' => 0,
-                            'activity_report_mail' => 0,
-                            'receive_magazine' => 0,
-                            'favorite_client_inform' => 0,
-                            'bookmark_end_mail' => 0,
-                            'bookmark_few_mail' => 0
+                            'send' => 0,
+                            'active' => 0,
                         )
                     )
                 ) // stopSending = true の場合に更新するレコードの設定
