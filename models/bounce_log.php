@@ -51,7 +51,10 @@ class BounceLog extends AppModel
         return $this->find(
             'count',
             [
-                "{$key}" => $value
+                'conditions' => [
+                    "{$key}" => $value
+                ],
+                'recursive' => -1
             ]
         );
     }
